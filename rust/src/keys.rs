@@ -309,6 +309,10 @@ mod tests {
         "wpkh([817e7be0/84h/0h/0h]xpub6CiKnWv7PPyyeb4kCwK4fidKqVjPfD9TP6MiXnzBVGZYNanNdY3mMvywcrdDc6wK82jyBSd95vsk26QujnJWPrSaPfYeyW7NyX37HHGtfQM/<0;1>/*)#60tjs4c7"
     }
 
+    fn multisig_desc() -> &'static str {
+        "wsh(sortedmulti(2,[817e7be0/48h/0h/0h/2h]xpub6CiKnWv7PPyyeb4kCwK4fidKqVjPfD9TP6MiXnzBVGZYNanNdY3mMvywcrdDc6wK82jyBSd95vsk26QujnJWPrSaPfYeyW7NyX37HHGtfQM/<0;1>/*,[831a3f84/48h/0h/0h/2h]xpub6DRKtpLKk2qctgengkaD7B6w32X5w6RAUntvLeS1uA9dz93Y1RRopvPBdRdA3KLdnxYyjWiFePzpZpVEJ6LcuiugmrijzzHeatrGcDvz4Yq/<0;1>/*))"
+    }
+
     fn derive_info() -> DeriveInfo {
         let xpub = "xpub6CiKnWv7PPyyeb4kCwK4fidKqVjPfD9TP6MiXnzBVGZYNanNdY3mMvywcrdDc6wK82jyBSd95vsk26QujnJWPrSaPfYeyW7NyX37HHGtfQM";
         let original_xpub = bitcoin::bip32::Xpub::from_str(xpub).unwrap();
@@ -332,6 +336,25 @@ mod tests {
     fn test_descriptor_parse() {
         let descriptor = Descriptor::parse_public_descriptor(desc());
         assert!(descriptor.is_ok());
+    }
+
+    #[test]
+    fn test_multisig_descriptor_address_derivation() {
+        // parse a 2-of-2 multisig through the same pubport -> Cove path single-sig uses
+        let descs: Descriptors =
+            pubport::descriptor::Descriptors::try_from_line(multisig_desc()).unwrap().into();
+        let wallet = descs.into_create_params().create_wallet_no_persist().unwrap();
+
+        // derive first few receive addresses and check they're deterministic
+        let expected = [
+            "bc1qutvt97s6xms0q7tc9v84tkyss4w7dn20mhxu9zfws554yz7ursns6tkeuj",
+            "bc1qk45q4dxwtsmz5a3mea0tdmh6nk4vpglcmnhlp4u9f9zv38qu7cjsnz5jyt",
+            "bc1q0utnux7t28aeeqr9zd0qu6lqsg5upc3qa62w8ujypsl04mn8wtqqksrrx3",
+        ];
+        for (i, want) in expected.iter().enumerate() {
+            let addr = wallet.peek_address(KeychainKind::External, i as u32);
+            assert_eq!(addr.address.to_string(), *want, "mismatch at index {i}");
+        }
     }
 
     #[test]
